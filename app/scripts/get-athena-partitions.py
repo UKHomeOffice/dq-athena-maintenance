@@ -4,9 +4,11 @@ Athena partitioning script
 
 import boto3
 import os
+import sys
 import time
 import datetime
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import re
 from dateutil.relativedelta import relativedelta
 from datetime import date
@@ -26,11 +28,32 @@ query = "show partitions " + database_name + "." + table_name
 pattern = re.compile("20[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}")
 maxcleardown = ((datetime.date.today() - relativedelta(months=2)).replace(day=1) - datetime.timedelta(days=1))
 mincleardown = (maxcleardown - datetime.timedelta(days=31))
+log_file = "/APP/athena-partition.log"
 
+"""
+Setup Logging
+"""
+logformat = '%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s'
+form = logging.Formatter(logformat)
+logging.basicConfig(
+    format=logformat,
+    level=logging.INFO
+)
 LOGGER = logging.getLogger()
-LOGGER.setLevel(logging.INFO)
+if LOGGER.hasHandlers():
+    LOGGER.handlers.clear()
+loghandler = TimedRotatingFileHandler(log_file, when="midnight", interval=1, backupCount=7)
+loghandler.suffix = "%Y-%m-%d"
+loghandler.setFormatter(form)
+LOGGER.addHandler(loghandler)
+consolehandler = logging.StreamHandler()
+consolehandler.setFormatter(form)
+LOGGER.addHandler(consolehandler)
+LOGGER.info("Starting")
+
 LOG_GROUP_NAME = None
 LOG_STREAM_NAME = None
+
 
 CONFIG = Config(
     retries=dict(
@@ -52,15 +75,17 @@ def error_handler(lineno, error):
 
 
 def main():
+
+    # ADD Check if archive table exists
     query_response = athena.start_query_execution(
-            QueryString=query,
-            QueryExecutionContext={
-                'Database': database_name
-                },
-            ResultConfiguration={
-                'OutputLocation': "s3://" + athena_log + "/" + s3_prefix,
-                }
-            )
+        QueryString=query,
+        QueryExecutionContext={
+            'Database': database_name
+            },
+        ResultConfiguration={
+            'OutputLocation': "s3://" + athena_log + "/" + s3_prefix,
+            }
+        )
     query_file = query_response['QueryExecutionId'] + '.txt'
 
     time.sleep(1)
@@ -76,8 +101,6 @@ def main():
     for item in list:
         match = pattern.search(item).group(0)
 
-        # if (match <= str(maxcleardown)) and (match >= str(mincleardown)):
-        #     partition_list.append(match)
         if match <= str(maxcleardown):
             partition_list.append(item)
 
@@ -90,8 +113,46 @@ def main():
         add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
                              "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
-        print(drop_partition_sql)
-        print(add_partition_sql)
+        try:
+            LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+
+            query_response = athena.start_query_execution(
+                QueryString=drop_partition_sql,
+                QueryExecutionContext={
+                    'Database': database_name
+                    },
+                ResultConfiguration={
+                    'OutputLocation': "s3://" + athena_log + "/" + s3_prefix,
+                    }
+                )
+        except Exception as err:
+            LOGGER.error(
+                'The following error has occurred on line: %s',
+
+                sys.exc_info()[2].tb_lineno)
+            LOGGER.error(str(err))
+            sys.exit(1)
+
+        try:
+            LOGGER.info('Adding partition %s from %s.%s_archive', item, database_name, table_name)
+
+            query_response = athena.start_query_execution(
+                QueryString=add_partition_sql,
+                QueryExecutionContext={
+                    'Database': database_name
+                    },
+                ResultConfiguration={
+                    'OutputLocation': "s3://" + athena_log + "/" + s3_prefix,
+                    }
+                )
+        except Exception as err:
+            LOGGER.error(
+                'The following error has occurred on line: %s',
+
+                sys.exc_info()[2].tb_lineno)
+            LOGGER.error(str(err))
+            sys.exit(1)
+    LOGGER.info("Were done here.")
 
 if __name__ == '__main__':
     main()
