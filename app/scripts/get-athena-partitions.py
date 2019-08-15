@@ -134,7 +134,7 @@ def main():
             sys.exit(1)
 
         try:
-            LOGGER.info('Adding partition %s from %s.%s_archive', item, database_name, table_name)
+            LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
 
             query_response = athena.start_query_execution(
                 QueryString=add_partition_sql,
