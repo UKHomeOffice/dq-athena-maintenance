@@ -3,12 +3,13 @@ kind: CronJob
 metadata:
   name: dq-athena-partition-maintenance
 spec:
-  schedule: "0 */1 * * *"
+  schedule: "*/5 * * * *"
   jobTemplate:
     spec:
       template:
         spec:
           restartPolicy: Never
+          backoffLimit: 0
           containers:
           - name: dq-athena-maintenance
             image: quay.io/ukhomeofficedigital/dq-athena-maintenance:{{.DRONE_COMMIT_SHA}}
