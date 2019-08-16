@@ -7,9 +7,9 @@ spec:
   jobTemplate:
     spec:
       template:
+      backoffLimit: 0
         spec:
           restartPolicy: Never
-          backoffLimit: 0
           containers:
           - name: dq-athena-maintenance
             image: quay.io/ukhomeofficedigital/dq-athena-maintenance:{{.DRONE_COMMIT_SHA}}
