@@ -20,13 +20,8 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 ATHENA_LOG = os.environ['ATHENA_LOG']
-S3_PREFIX = os.environ['S3_PREFIX']
 CSV_S3_BUCKET = os.environ['CSV_S3_BUCKET']
-
-try:
-    CSV_S3_PREFIX = os.environ['CSV_S3_PREFIX']
-except:
-    CSV_S3_BUCKET = CSV_S3_BUCKET + "/" + CSV_S3_PREFIX
+CSV_S3_FILE = os.environ['CSV_S3_FILE']
 
 
 PATTERN = re.compile("20[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}")
@@ -212,7 +207,7 @@ def execute_athena(sql, database_name):
                         'Database': database_name
                         },
                     ResultConfiguration={
-                        'OutputLocation': "s3://" + ATHENA_LOG + "/" + S3_PREFIX,
+                        'OutputLocation': "s3://" + ATHENA_LOG,
                         }
                     )
             except ClientError as err:
@@ -271,23 +266,26 @@ def main():
 
     attempts = 4
     i = 1
-    while True:
-        if i == attempts:
-            LOGGER.error('%s attempts made. Failing with error', attempts)
-            sys.exit(1)
-        try:
-            S3.download_file(CSV_S3_BUCKET, CSV_S3_PREFIX, "/APP/list.csv")
-        except ClientError as err:
-            error_code = err.response['Error']['Code']
-            if error_code == "404":
-                LOGGER.error('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_PREFIX)
-                break
+    try:
+        while True:
+            if i == attempts:
+                LOGGER.error('%s attempts made. Failing with error', attempts)
+                sys.exit(1)
+            try:
+                S3.download_file(CSV_S3_BUCKET, CSV_S3_FILE, "/APP/list.csv")
+            except ClientError as err:
+                error_code = err.response['Error']['Code']
+                if error_code == "404":
+                    LOGGER.error('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_FILE)
+                    break
+                else:
+                    raise err
+                i += 1
             else:
-                raise err
-            i += 1
-        else:
-            LOGGER.info('Successfully pulled CSV')
-            break
+                LOGGER.info('Successfully pulled CSV')
+                break
+    except Exception as err:
+        error_handler(sys.exc_info()[2].tb_lineno, err)
 
     with open("/APP/list.csv") as csv_file:
         csv_reader = csv.DictReader(csv_file)
@@ -307,7 +305,7 @@ def main():
 
             time.sleep(1)
 
-            s3_object = S3.get_object(Bucket=ATHENA_LOG, Key=(S3_PREFIX + query_file))
+            s3_object = S3.get_object(Bucket=ATHENA_LOG, Key=query_file)
             body = s3_object['Body']
 
             for obj in body:
