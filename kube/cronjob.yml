@@ -8,6 +8,7 @@ spec:
     spec:
       template:
         spec:
+          restartPolicy: Never
           containers:
           - name: dq-athena-maintenance
             image: quay.io/ukhomeofficedigital/dq-athena-maintenance:{{.DRONE_COMMIT_SHA}}
