@@ -24,8 +24,8 @@ The layout of the CSV file is as follows:-
 ## Variables
 See below a list of variables that are required, and also some that are optional
 
-|  Variable name   |    example            | description                                                                                     | required |
-| ------------------------ | ------------  | ------------------------------------------------------------------------------------------------| -------- |
+|  Variable name           |    example    | description                                                                                     | required |
+| ------------------------ | ------------- | ------------------------------------------------------------------------------------------------| -------- |
 |    ATHENA_LOG            | s3-athena-log | Location of Athena log files                                                                    |    Y     |
 |    CSV_S3_BUCKET         | s3-bucket-csv | S3 bucket that contains the CSV file                                                            |    Y     |
 |    CSV_S3_FILE           | file.csv      | Location of the CSV file. Can be a filename, or a prefix + filename (a/path/to/csv.file)        |    Y     |
