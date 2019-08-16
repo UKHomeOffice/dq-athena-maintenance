@@ -12,6 +12,7 @@ spec:
           - name: dq-athena-maintenance
             image: quay.io/ukhomeofficedigital/dq-athena-maintenance:{{.DRONE_COMMIT_SHA}}
             imagePullPolicy: Always
+            restartPolicy: OnFailure
             securityContext:
               runAsNonRoot: true
               runAsUser: 1000
