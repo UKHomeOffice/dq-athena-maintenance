@@ -31,3 +31,17 @@ See below a list of variables that are required, and also some that are optional
 |    CSV_S3_FILE           | file.csv      | Location of the CSV file. Can be a filename, or a prefix + filename (a/path/to/csv.file)        |    Y     |
 |    AWS_ACCESS_KEY_ID     | ABCD          | AWS access key ID                                                                               |    Y     |
 |    AWS_SECRET_ACCESS_KEY | ABCD1234      | AWS secret access key                                                                           |    Y     |
+|    AWS_DEFAULT_REGION    | eu-west-2     | AWS default region                                                                              |    Y     |    
+
+## Example usage
+### Running in Docker
+
+Build container
+```
+docker build -t athena app/
+```
+
+Run container
+```
+docker run -e ATHENA_LOG=s3-athena-log -e AWS_ACCESS_KEY_ID=ABCDEFGHIJLMNOP -e AWS_SECRET_ACCESS_KEY=aBcDe1234+fghijklm01 -e AWS_DEFAULT_REGION=eu-west-2 -e CSV_S3_BUCKET="s3-bucket-containing-csv" -e CSV_S3_FILE="some/prefix/athena-archive-list.csv" athena
+```
