@@ -20,7 +20,7 @@ pipeline:
       - INSECURE_SKIP_TLS_VERIFY=true
     commands:
       - export KUBE_TOKEN=$$NOTPROD_KUBE_TOKEN
-      - export KUBE_SERVER=$$NOTPROD_KUBE_SERVER      
+      - export KUBE_SERVER=$$NOTPROD_KUBE_SERVER
       - export ATHENA_LOG=$$NOTPROD_ATHENA_LOG
       - export CSV_S3_BUCKET=$$NOTPROD_CSV_S3_BUCKET
       - export CSV_S3_FILE=$$NOTPROD_CSV_S3_FILE
@@ -28,7 +28,7 @@ pipeline:
       - export AWS_SECRET_ACCESS_KEY=$$NOTPROD_AWS_SECRET_ACCESS_KEY
       - export AWS_DEFAULT_REGION=$$NOTPROD_AWS_DEFAULT_REGION
       - kd -f kube/secret.yml
-      - kd --replace kube/cronjob.yml
+      - kd --replace -f kube/cronjob.yml
     secrets:
       - NOTPROD_KUBE_TOKEN
       - NOTPROD_KUBE_SERVER
