@@ -10,6 +10,30 @@ pipeline:
     force_tag: true
     tags:
       - ${DRONE_COMMIT_SHA}
-      - ${DRONE_BUILD_NUMBER}
+    when:
+      event: push
+
+  deploy_to_dev:
+    image: quay.io/ukhomeofficedigital/kd
+    environment:
+      - KUBE_NAMESPACE=dq-apps-notprod
+      - INSECURE_SKIP_TLS_VERIFY=true
+    commands:
+      - export ATHENA_LOG=$$NOTPROD_ATHENA_LOG
+      - export CSV_S3_BUCKET=$$NOTPROD_CSV_S3_BUCKET
+      - export CSV_S3_FILE=$$NOTPROD_CSV_S3_FILE
+      - export AWS_ACCESS_KEY_ID=$$NOTPROD_AWS_ACCESS_KEY_ID
+      - export AWS_SECRET_ACCESS_KEY=$$NOTPROD_AWS_SECRET_ACCESS_KEY
+      - export AWS_DEFAULT_REGION=$$NOTPROD_AWS_DEFAULT_REGION
+      - kd -f kube/secret.yml -f kube/deployment.yml
+    secrets:
+      - NOTPROD_KUBE_TOKEN
+      - NOTPROD_KUBE_SERVER
+      - NOTPROD_ATHENA_LOG
+      - NOTPROD_CSV_S3_BUCKET
+      - NOTPROD_CSV_S3_FILE
+      - NOTPROD_AWS_ACCESS_KEY_ID
+      - NOTPROD_AWS_SECRET_ACCESS_KEY
+      - NOTPROD_AWS_DEFAULT_REGION
     when:
       event: push
