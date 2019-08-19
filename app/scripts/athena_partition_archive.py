@@ -89,7 +89,25 @@ def send_message_to_slack(text):
 
 
     try:
-        post = {"text": "{0}".format(text)}
+        post = {
+            "text": ":fire: :sad_parrot: An error has occured in the *Athena Partition Maintenace* pod :sad_parrot: :fire:",
+            "attachments": [
+                {
+                    "text": "{0}".format(text),
+                    "color": "#B22222",
+                    "attachment_type": "default",
+                    "fields": [
+                        {
+                            "title": "Priority",
+                            "value": "High",
+                            "short": "false"
+                        }
+                    ],
+                    "footer": "Kubernetes API",
+                    "footer_icon": "https://platform.slack-edge.com/img/default_application_icon.png"
+                }
+            ]
+            }
 
         ssm_param_name = 'slack_notification_webhook'
         ssm = boto3.client('ssm', config=CONFIG)
@@ -249,7 +267,13 @@ def execute_athena(sql, database_name):
                         time.sleep((2 ** i) + random.random())
                         i += 1
                         clear_down(sql)
+                    if "Table not found" in state_change_reason:
+                        LOGGER.warning('Database / Table not found, continuing.')
+                        LOGGER.warning(sql)
+                        send_message_to_slack('Database / Table not found')
+                        break
                     else:
+                        send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         sys.exit(1)
                 elif response['QueryExecution']['Status']['State'] == 'SUCCEEDED':
