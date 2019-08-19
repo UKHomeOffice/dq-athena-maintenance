@@ -271,7 +271,7 @@ def execute_athena(sql, database_name):
                         LOGGER.warning('Database / Table not found, continuing.')
                         LOGGER.warning(sql)
                         send_message_to_slack('Database / Table not found')
-                        break
+                        sys.exit(1)
                     else:
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
