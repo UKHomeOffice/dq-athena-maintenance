@@ -95,12 +95,12 @@ def send_message_to_slack(text):
         ssm = boto3.client('ssm', config=CONFIG)
         try:
             response = ssm.get_parameter(Name=ssm_param_name, WithDecryption=True)
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ParameterNotFound':
+        except ClientError as err:
+            if err.response['Error']['Code'] == 'ParameterNotFound':
                 LOGGER.info('Slack SSM parameter %s not found. No notification sent', ssm_param_name)
                 return
             else:
-                LOGGER.error("Unexpected error when attempting to get Slack webhook URL: %s", e)
+                LOGGER.error("Unexpected error when attempting to get Slack webhook URL: %s", err)
                 return
         if 'Value' in response['Parameter']:
             url = response['Parameter']['Value']
@@ -153,6 +153,7 @@ def clear_down(sql):
             LOGGER.info('The following was deleted: %s', response[0]['Deleted'])
 
     except Exception as err:
+        send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
 def check_query_status(execution_id):
@@ -177,6 +178,7 @@ def check_query_status(execution_id):
             time.sleep(1)
 
     except Exception as err:
+        send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
 def execute_athena(sql, database_name):
@@ -255,6 +257,7 @@ def execute_athena(sql, database_name):
                     break
 
     except Exception as err:
+        send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
     return response
@@ -285,78 +288,78 @@ def main():
                 LOGGER.info('Successfully pulled CSV')
                 break
     except Exception as err:
+        send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
-    with open("/APP/list.csv") as csv_file:
-        csv_reader = csv.DictReader(csv_file)
+    try:
+        with open("/APP/list.csv") as csv_file:
+            csv_reader = csv.DictReader(csv_file)
 
-        for row in csv_reader:
-            database_name = row["database_name"]
-            table_name = row["table_name"]
-            s3_location = row["s3_location"]
+            for row in csv_reader:
+                database_name = row["database_name"]
+                table_name = row["table_name"]
+                s3_location = row["s3_location"]
 
-            LOGGER.info('Processing %s.%s', database_name, table_name)
+                LOGGER.info('Processing %s.%s', database_name, table_name)
 
-            sql = "show partitions " + database_name + "." + table_name
+                sql = "show partitions " + database_name + "." + table_name
 
-            # ADD Check if archive table exists
-            response = execute_athena(sql, database_name)
-            query_file = response['QueryExecution']['QueryExecutionId'] + '.txt'
+                # ADD Check if archive table exists
+                response = execute_athena(sql, database_name)
+                query_file = response['QueryExecution']['QueryExecutionId'] + '.txt'
 
-            time.sleep(1)
+                time.sleep(1)
 
-            s3_object = S3.get_object(Bucket=ATHENA_LOG, Key=query_file)
-            body = s3_object['Body']
+                s3_object = S3.get_object(Bucket=ATHENA_LOG, Key=query_file)
+                body = s3_object['Body']
 
-            for obj in body:
-                result = obj.decode('utf-8')
-                result_list = result.split()
+                for obj in body:
+                    result = obj.decode('utf-8')
+                    result_list = result.split()
 
-            partition_list = []
+                partition_list = []
 
-            for item in result_list:
-                try:
-                    match = PATTERN.search(item).group(0)
-                except:
-                    LOGGER.info("No match found.")
+                for item in result_list:
+                    try:
+                        match = PATTERN.search(item).group(0)
+                    except:
+                        LOGGER.info("No match found.")
 
-                if match <= str(MAXCLEARDOWN):
-                    partition_list.append(item)
+                    if match <= str(MAXCLEARDOWN):
+                        partition_list.append(item)
 
-            for item in partition_list:
-                item_quoted = item[:10] + "'" + item[10:] + "'"
-                item_stripped = item.split('=')[1]
+                for item in partition_list:
+                    item_quoted = item[:10] + "'" + item[10:] + "'"
+                    item_stripped = item.split('=')[1]
 
-                drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
-                                     " DROP PARTITION (" + item_quoted + ");")
-                add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
-                                     "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
+                    drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                         " DROP PARTITION (" + item_quoted + ");")
+                    add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                         "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
-                try:
-                    LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
-                    execute_athena(drop_partition_sql, database_name)
-                except Exception as err:
-                    LOGGER.error(
-                        'The following error has occurred on line: %s',
+                    try:
+                        LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                        execute_athena(drop_partition_sql, database_name)
+                    except Exception as err:
+                        send_message_to_slack(err)
+                        error_handler(sys.exc_info()[2].tb_lineno, err)
+                        sys.exit(1)
 
-                        sys.exc_info()[2].tb_lineno)
-                    LOGGER.error(str(err))
-                    sys.exit(1)
+                    try:
+                        LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                        execute_athena(add_partition_sql, database_name)
+                    except Exception as err:
+                        send_message_to_slack(err)
+                        error_handler(sys.exc_info()[2].tb_lineno, err)
+                        sys.exit(1)
 
-                try:
-                    LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
-                    execute_athena(add_partition_sql, database_name)
-                except Exception as err:
-                    LOGGER.error(
-                        'The following error has occurred on line: %s',
+                LOGGER.info("Complete.")
 
-                        sys.exc_info()[2].tb_lineno)
-                    LOGGER.error(str(err))
-                    sys.exit(1)
+        LOGGER.info("Were done here.")
+    except Exception as err:
+        send_message_to_slack(err)
+        error_handler(sys.exc_info()[2].tb_lineno, err)
 
-            LOGGER.info("Complete.")
-
-    LOGGER.info("Were done here.")
 
 if __name__ == '__main__':
     main()
