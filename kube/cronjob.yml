@@ -3,7 +3,7 @@ kind: CronJob
 metadata:
   name: dq-athena-partition-maintenance
 spec:
-  schedule: "{{.KUBE_SCHEDULE}}"
+  schedule: {{.KUBE_SCHEDULE}}
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
