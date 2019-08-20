@@ -304,7 +304,8 @@ def main():
                 error_code = err.response['Error']['Code']
                 if error_code == "404":
                     LOGGER.error('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_FILE)
-                    break
+                    send_message_to_slack('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_FILE)
+                    sys.exit(1)
                 else:
                     raise err
                 i += 1
@@ -328,18 +329,19 @@ def main():
 
                 sql = "show partitions " + database_name + "." + table_name
 
-                # ADD Check if archive table exists
                 response = execute_athena(sql, database_name)
                 query_file = response['QueryExecution']['QueryExecutionId'] + '.txt'
 
+                # Sleep to allow file to be written to S3
                 time.sleep(1)
 
-                s3_object = S3.get_object(Bucket=ATHENA_LOG, Key=query_file)
-                body = s3_object['Body']
+                S3.download_file(ATHENA_LOG, query_file, "/APP/query.txt")
 
-                for obj in body:
-                    result = obj.decode('utf-8')
-                    result_list = result.split()
+                result_list = []
+
+                with open("/APP/query.txt") as file:
+                    for line in file:
+                        result_list.append(line)
 
                 partition_list = []
 
@@ -348,11 +350,11 @@ def main():
                         match = PATTERN.search(item).group(0)
                     except:
                         LOGGER.info("No match found.")
-
                     if match <= str(MAXCLEARDOWN):
                         partition_list.append(item)
 
                 for item in partition_list:
+                    LOGGER.info(item)
                     item_quoted = item[:10] + "'" + item[10:] + "'"
                     item_stripped = item.split('=')[1]
 
@@ -360,6 +362,7 @@ def main():
                                          " DROP PARTITION (" + item_quoted + ");")
                     add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
                                          "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
+
 
                     try:
                         LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
