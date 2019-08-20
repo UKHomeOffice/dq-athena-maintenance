@@ -341,6 +341,7 @@ def main():
 
                 with open("/APP/query.txt") as file:
                     for line in file:
+                        line = line.strip()
                         result_list.append(line)
 
                 partition_list = []
@@ -354,7 +355,6 @@ def main():
                         partition_list.append(item)
 
                 for item in partition_list:
-                    LOGGER.info(item)
                     item_quoted = item[:10] + "'" + item[10:] + "'"
                     item_stripped = item.split('=')[1]
 
@@ -366,6 +366,7 @@ def main():
 
                     try:
                         LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                        LOGGER.debug(drop_partition_sql)
                         execute_athena(drop_partition_sql, database_name)
                     except Exception as err:
                         send_message_to_slack(err)
@@ -374,6 +375,7 @@ def main():
 
                     try:
                         LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                        LOGGER.debug(add_partition_sql)
                         execute_athena(add_partition_sql, database_name)
                     except Exception as err:
                         send_message_to_slack(err)
