@@ -303,8 +303,9 @@ def main():
             except ClientError as err:
                 error_code = err.response['Error']['Code']
                 if error_code == "404":
-                    LOGGER.error('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_FILE)
-                    send_message_to_slack('Parition list not found in S3: %s/%s', CSV_S3_BUCKET, CSV_S3_FILE)
+                    err = "Parition list not found in S3: " + CSV_S3_BUCKET + "/" + CSV_S3_FILE
+                    LOGGER.error(err)
+                    send_message_to_slack(err)
                     sys.exit(1)
                 else:
                     raise err

@@ -1,11 +1,27 @@
 # dq-athena-maintenance
 
+[![Docker Repository on Quay](https://quay.io/repository/ukhomeofficedigital/dq-athena-maintenance "Docker Repository on Quay")](https://quay.io/repository/ukhomeofficedigital/dq-athena-maintenance)
+
 ## Introduction
-This app archive's tables in Athena and is designed to run in Kubernetes.
+This app archive's tables in Athena and is designed to run in Kubernetes. It utilises Kubernetes `cronjob` that triggers based on the value of `KUBE_SCHEDULE`.
+
+When triggered a job is created which starts a POD, and a container with the image from Quay:-
 
 It currently only supports a rule to archive data that is older than 2 months + current.
 
 A CSV file must exist in S3 which contains the database name, table name and S3 location of the data.
+
+**Note:** The `_arhicve` table must exist prior to running.
+
+## Dependencies
+
+- Docker
+- Kubernetes
+- Python3.7
+- Drone
+- AWS CLI
+- Slack
+- AWS Keys with access to Athena, Glue and S3
 
 ## CSV file
 The CSV file must **not** be in utf-8.
