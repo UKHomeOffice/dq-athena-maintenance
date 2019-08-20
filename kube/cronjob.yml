@@ -4,11 +4,11 @@ metadata:
   name: dq-athena-partition-maintenance
 spec:
   schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       template:
         spec:
-          concurrencyPolicy: Forbid
           restartPolicy: Never
           containers:
           - name: dq-athena-maintenance
