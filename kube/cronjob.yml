@@ -1,0 +1,58 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: dq-athena-partition-maintenance
+spec:
+  schedule: {{.KUBE_SCHEDULE}}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: dq-athena-maintenance
+            image: quay.io/ukhomeofficedigital/dq-athena-maintenance:{{.DRONE_COMMIT_SHA}}
+            imagePullPolicy: Always
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 1000
+            resources:
+              limits:
+                cpu: "1.5"
+                memory: "1.5Gi"
+              requests:
+                cpu: "1"
+                memory: "512Mi"
+            env:
+              - name: ATHENA_LOG
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: ATHENA_LOG
+              - name: CSV_S3_BUCKET
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: CSV_S3_BUCKET
+              - name: CSV_S3_FILE
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: CSV_S3_FILE
+              - name: AWS_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: AWS_ACCESS_KEY_ID
+              - name: AWS_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: AWS_SECRET_ACCESS_KEY
+              - name: AWS_DEFAULT_REGION
+                valueFrom:
+                  secretKeyRef:
+                    name: dq-athena-partition-maintenance
+                    key: AWS_DEFAULT_REGION
+      backoffLimit: 0
