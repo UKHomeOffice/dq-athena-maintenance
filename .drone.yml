@@ -70,5 +70,4 @@ deploy_to_prod:
     - PROD_AWS_DEFAULT_REGION
   when:
     environment: production
-    branch: master
     event: deployment
