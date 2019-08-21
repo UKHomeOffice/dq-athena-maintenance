@@ -69,6 +69,6 @@ deploy_to_prod:
     - PROD_AWS_SECRET_ACCESS_KEY
     - PROD_AWS_DEFAULT_REGION
   when:
-    event: push
+    environment: production
     branch: master
     event: deployment
