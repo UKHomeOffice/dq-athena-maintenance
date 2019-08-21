@@ -11,7 +11,7 @@ It currently only supports a rule to archive data that is older than 2 months + 
 
 A CSV file must exist in S3 which contains the database name, table name and S3 location of the data.
 
-**Note:** The `_arhicve` table must exist prior to running.
+**Note:** The `_archive` table must exist prior to running.
 
 ## Dependencies
 
@@ -28,13 +28,17 @@ The CSV file must **not** be in utf-8.
 
 The layout of the CSV file is as follows:-
 
-|  database_name  |  table_name  |      s3_location      |
-| --------------- | ------------ | --------------------- |
-|    database1    |    table1    | s3-a-location/in/s3   |
-|    database1    |    table2    | s3-a-location/in/s3   |
-|    database1    |    table3    | s3-a-location/in/s3   |
-|    database2    |    table1    | s3-a-location/in/s3   |
-|    database3    |    table1    | s3-a-location/in/s3   |
+|  database_name  |  table_name  |             s3_location             |
+| --------------- | ------------ | ----------------------------------- |
+|    database1    |    table1    | s3-bucket/path/to/partition/data/   |
+|    database1    |    table2    | s3-bucket/path/to/partition/data/   |
+|    database1    |    table3    | s3-bucket/path/to/partition/data/   |
+|    database2    |    table1    | s3-bucket/path/to/partition/data/   |
+|    database3    |    table1    | s3-bucket/path/to/partition/data/   |
+
+`database_name` - the name of the database (schema).
+`table_name` - the name of the table you want to archive the partitions from.
+`s3_location` - the location of the data in the partition you want to archive. Note, this should **not** include `s3://` at the beginning, only the bucket name and prefix (s3-bucket/path/to/partition/data/).
 
 
 ## Variables
