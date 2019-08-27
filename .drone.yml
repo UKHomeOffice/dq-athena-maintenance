@@ -18,7 +18,6 @@ pipeline:
     environment:
       - KUBE_NAMESPACE=dq-apps-notprod
       - INSECURE_SKIP_TLS_VERIFY=true
-      - KUBE_SCHEDULE="0 */12 * * *"
     commands:
       - export KUBE_TOKEN=$$NOTPROD_KUBE_TOKEN
       - export KUBE_SERVER=$$NOTPROD_KUBE_SERVER
@@ -28,6 +27,7 @@ pipeline:
       - export AWS_ACCESS_KEY_ID=$$NOTPROD_AWS_ACCESS_KEY_ID
       - export AWS_SECRET_ACCESS_KEY=$$NOTPROD_AWS_SECRET_ACCESS_KEY
       - export AWS_DEFAULT_REGION=$$NOTPROD_AWS_DEFAULT_REGION
+      - export KUBE_SCHEDULE=$$NOTPROD_KUBE_SCHEDULE
       - kd -f kube/secret.yml
       - kd --replace -f kube/cronjob.yml
     secrets:
@@ -39,6 +39,7 @@ pipeline:
       - NOTPROD_AWS_ACCESS_KEY_ID
       - NOTPROD_AWS_SECRET_ACCESS_KEY
       - NOTPROD_AWS_DEFAULT_REGION
+      - NOTPROD_KUBE_SCHEDULE
     when:
       event: push
 
@@ -47,7 +48,6 @@ pipeline:
     environment:
       - KUBE_NAMESPACE=dq-apps
       - INSECURE_SKIP_TLS_VERIFY=true
-      - KUBE_SCHEDULE="0 */12 * * *"
     commands:
       - export KUBE_TOKEN=$$PROD_KUBE_TOKEN
       - export KUBE_SERVER=$$PROD_KUBE_SERVER
@@ -57,6 +57,7 @@ pipeline:
       - export AWS_ACCESS_KEY_ID=$$PROD_AWS_ACCESS_KEY_ID
       - export AWS_SECRET_ACCESS_KEY=$$PROD_AWS_SECRET_ACCESS_KEY
       - export AWS_DEFAULT_REGION=$$PROD_AWS_DEFAULT_REGION
+      - export KUBE_SCHEDULE=$$PROD_KUBE_SCHEDULE
       - kd -f kube/secret.yml
       - kd --replace -f kube/cronjob.yml
     secrets:
@@ -68,6 +69,7 @@ pipeline:
       - PROD_AWS_ACCESS_KEY_ID
       - PROD_AWS_SECRET_ACCESS_KEY
       - PROD_AWS_DEFAULT_REGION
+      - PROD_KUBE_SCHEDULE
     when:
       environment: production
       event: deployment
