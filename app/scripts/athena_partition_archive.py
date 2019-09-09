@@ -463,7 +463,7 @@ def main():
     """
     Main function to execute Athena queries
     """
-    date = datetime.date.today()
+    
     attempts = 4
     i = 1
     try:
