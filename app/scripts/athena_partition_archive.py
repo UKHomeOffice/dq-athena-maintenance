@@ -337,18 +337,18 @@ def partition(database_name, table_name, s3_location, retention):
                                  "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
             try:
-                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
-                LOGGER.debug(drop_partition_sql)
-                execute_athena(drop_partition_sql, database_name)
+                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(add_partition_sql)
+                execute_athena(add_partition_sql, database_name)
             except Exception as err:
                 send_message_to_slack(err)
                 error_handler(sys.exc_info()[2].tb_lineno, err)
                 sys.exit(1)
 
             try:
-                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
-                LOGGER.debug(add_partition_sql)
-                execute_athena(add_partition_sql, database_name)
+                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(drop_partition_sql)
+                execute_athena(drop_partition_sql, database_name)
             except Exception as err:
                 send_message_to_slack(err)
                 error_handler(sys.exc_info()[2].tb_lineno, err)
@@ -407,20 +407,20 @@ def partition_max_date(database_name, table_name, s3_location, retention, partit
                                  "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
             try:
-                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
-                LOGGER.debug(drop_partition_sql)
-                execute_athena(drop_partition_sql, database_name)
-                # LOGGER.info(drop_partition_sql)
+                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(add_partition_sql)
+                execute_athena(add_partition_sql, database_name)
+                # LOGGER.info(add_partition_sql)
             except Exception as err:
                 send_message_to_slack(err)
                 error_handler(sys.exc_info()[2].tb_lineno, err)
                 sys.exit(1)
 
             try:
-                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
-                LOGGER.debug(add_partition_sql)
-                execute_athena(add_partition_sql, database_name)
-                # LOGGER.info(add_partition_sql)
+                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(drop_partition_sql)
+                execute_athena(drop_partition_sql, database_name)
+                # LOGGER.info(drop_partition_sql)
             except Exception as err:
                 send_message_to_slack(err)
                 error_handler(sys.exc_info()[2].tb_lineno, err)
