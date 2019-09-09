@@ -320,7 +320,7 @@ def partition(database_name, table_name, s3_location, retention):
             path_name = row['Data'][0]['VarCharValue']
             try:
                 match = PATTERN.search(path_name).group(0)
-                if match <= str(MAXCLEARDOWN):
+                if match <= str(retention):
                     if path_name != 'path_name':
                         partition_list.append("""path_name={0}""".format(path_name))
             except:
