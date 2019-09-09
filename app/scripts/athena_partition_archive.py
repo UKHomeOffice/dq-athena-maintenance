@@ -27,6 +27,7 @@ CSV_S3_FILE = os.environ['CSV_S3_FILE']
 PATTERN = re.compile("20[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}")
 TWOMONTHSPLUSCURRENT = ((datetime.date.today() - relativedelta(months=2)).replace(day=1) - datetime.timedelta(days=1))
 THIRTYDAYS = (datetime.date.today() - datetime.timedelta(days=30))
+TODAY = datetime.date.today()
 LOG_FILE = "/APP/athena-partition.log"
 
 """
@@ -62,6 +63,7 @@ CONFIG = Config(
 
 S3 = boto3.client('s3')
 ATHENA = boto3.client('athena', config=CONFIG)
+GLUE = boto3.client('glue', config=CONFIG)
 
 def error_handler(lineno, error):
     """
@@ -430,11 +432,38 @@ def partition_max_date(database_name, table_name, s3_location, retention, partit
         send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
+def check_table(database_name, table_name):
+    """
+    Checks for the existence of a table in the Glue catalogue.
+
+    Args:
+        database_name  : the schema name in Athena
+        table_name     : the table name in Athena
+    Returns:
+
+        Glue response in JSON format
+    """
+
+    try:
+        response = GLUE.get_table(
+            DatabaseName=database_name,
+            Name=table_name
+        )
+        return response
+    except ClientError as err:
+        if err.response['Error']['Code'] in ('EntityNotFoundException'):
+            err = 'Table ' + database_name + '.' + table_name + ' not found!'
+            send_message_to_slack(err)
+            LOGGER.warning(err)
+        else:
+            send_message_to_slack(err)
+            error_handler(sys.exc_info()[2].tb_lineno, err)
+
 def main():
     """
     Main function to execute Athena queries
     """
-
+    date = datetime.date.today()
     attempts = 4
     i = 1
     try:
@@ -471,17 +500,26 @@ def main():
                 s3_location = row["s3_location"]
                 retention_period = row["retention_period"]
 
-                if retention_period == '2MonthsPlusCurrent':
-                    retention = str(TWOMONTHSPLUSCURRENT)
-                    partition(database_name, table_name, s3_location, retention)
-                elif retention_period == '30Days':
-                    retention = str(THIRTYDAYS)
-                    partition(database_name, table_name, s3_location, retention)
-                elif retention_period == 'PartitionMaxDate':
-                    days_to_keep = row["days_to_keep"]
-                    retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
-                    partitioned_by = row["partitioned_by"]
-                    partition_max_date(database_name, table_name, s3_location, retention, partitioned_by)
+                origin_table = check_table(database_name, table_name)
+                if origin_table:
+
+                    archive_table = check_table(database_name, table_name)
+                    if archive_table:
+
+                        if retention_period == '2MonthsPlusCurrent':
+                            if TODAY != TODAY.replace(day=1):
+                                LOGGER.info('Ignoring %s.%s until the 1st of the month.', database_name, table_name)
+                            else:
+                                retention = str(TWOMONTHSPLUSCURRENT)
+                                partition(database_name, table_name, s3_location, retention)
+                        elif retention_period == '30Days':
+                            retention = str(THIRTYDAYS)
+                            partition(database_name, table_name, s3_location, retention)
+                        elif retention_period == 'PartitionMaxDate':
+                            days_to_keep = row["days_to_keep"]
+                            retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
+                            partitioned_by = row["partitioned_by"]
+                            partition_max_date(database_name, table_name, s3_location, retention, partitioned_by)
 
         LOGGER.info("Were done here.")
 
