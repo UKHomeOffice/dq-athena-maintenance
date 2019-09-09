@@ -503,8 +503,7 @@ def main():
                 origin_table = check_table(database_name, table_name)
                 if origin_table:
 
-                    table_name = table_name + "_archive"
-                    archive_table = check_table(database_name, table_name)
+                    archive_table = check_table(database_name, table_name + "_archive")
                     if archive_table:
 
                         if retention_period == '2MonthsPlusCurrent':
