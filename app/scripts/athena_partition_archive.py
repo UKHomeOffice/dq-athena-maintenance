@@ -25,7 +25,9 @@ CSV_S3_FILE = os.environ['CSV_S3_FILE']
 
 
 PATTERN = re.compile("20[0-9]{2}-[0-9]{1,2}-[0-9]{1,2}")
-MAXCLEARDOWN = ((datetime.date.today() - relativedelta(months=2)).replace(day=1) - datetime.timedelta(days=1))
+TWOMONTHSPLUSCURRENT = ((datetime.date.today() - relativedelta(months=2)).replace(day=1) - datetime.timedelta(days=1))
+THIRTYDAYS = (datetime.date.today() - datetime.timedelta(days=30))
+TODAY = datetime.date.today()
 LOG_FILE = "/APP/athena-partition.log"
 
 """
@@ -61,6 +63,7 @@ CONFIG = Config(
 
 S3 = boto3.client('s3')
 ATHENA = boto3.client('athena', config=CONFIG)
+GLUE = boto3.client('glue', config=CONFIG)
 
 def error_handler(lineno, error):
     """
@@ -286,6 +289,176 @@ def execute_athena(sql, database_name):
 
     return response
 
+def partition(database_name, table_name, s3_location, retention):
+    """
+    Gets a list of partitions from Athena, then removes partitions based on the retention period.
+
+    Args:
+        database_name  : the schema name in Athena
+        table_name     : the table name in Athena
+        s3_location    : the S3 location of the data in the schema
+        retention      : retention period / days to keep
+
+    Returns:
+        None
+    """
+
+    try:
+        LOGGER.info('Processing %s.%s, removing partitions older than %s.', database_name, table_name, retention)
+
+        sql = "show partitions " + database_name + "." + table_name
+
+        response = execute_athena(sql, database_name)
+        execution_id = response['QueryExecution']['QueryExecutionId']
+
+        query_results = ATHENA.get_query_results(
+            QueryExecutionId=execution_id)
+
+        partition_list = []
+
+        for row in query_results['ResultSet']['Rows']:
+            path_name = row['Data'][0]['VarCharValue']
+            try:
+                match = PATTERN.search(path_name).group(0)
+                if match <= str(retention):
+                    if path_name != 'path_name':
+                        partition_list.append("""path_name={0}""".format(path_name))
+            except:
+                LOGGER.info("No match found.")
+                break
+
+        for item in partition_list:
+            item_quoted = item[:10] + "'" + item[10:] + "'"
+            item_stripped = item.split('=')[1]
+
+            drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                 " DROP PARTITION (" + item_quoted + ");")
+            add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                 "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
+
+            try:
+                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(add_partition_sql)
+                execute_athena(add_partition_sql, database_name)
+            except Exception as err:
+                send_message_to_slack(err)
+                error_handler(sys.exc_info()[2].tb_lineno, err)
+                sys.exit(1)
+
+            try:
+                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(drop_partition_sql)
+                execute_athena(drop_partition_sql, database_name)
+            except Exception as err:
+                send_message_to_slack(err)
+                error_handler(sys.exc_info()[2].tb_lineno, err)
+                sys.exit(1)
+
+        LOGGER.info("Complete.")
+
+    except Exception as err:
+        send_message_to_slack(err)
+        error_handler(sys.exc_info()[2].tb_lineno, err)
+
+def partition_max_date(database_name, table_name, s3_location, retention, partitioned_by):
+    """
+    Gets a list of partitions from Athena, then compares the MAX of partitioned_by against
+    the retention date, then removes the partitions older than the retention period.
+
+    Args:
+        database_name  : the schema name in Athena
+        table_name     : the table name in Athena
+        s3_location    : the S3 location of the data in the schema
+        retention      : retention period / days to keep
+        partitioned_by : what the table is partitioned by which is used to work out the MAX date
+
+    Returns:
+        None
+    """
+
+    try:
+        LOGGER.info('Processing %s.%s, removing partitions where the MAX date of %s is older than %s.', database_name, table_name, partitioned_by, retention)
+
+        sql = "select path_name, MAX(" + partitioned_by + ") from " + database_name + "." + table_name + " group by path_name;"
+
+        response = execute_athena(sql, database_name)
+        execution_id = response['QueryExecution']['QueryExecutionId']
+
+        query_results = ATHENA.get_query_results(
+            QueryExecutionId=execution_id)
+
+        partition_list = []
+
+        for row in query_results['ResultSet']['Rows']:
+            path_name = row['Data'][0]['VarCharValue']
+            max_date = row['Data'][1]['VarCharValue']
+            if max_date <= str(retention):
+                if path_name != 'path_name':
+                    partition_list.append("""path_name={0}""".format(path_name))
+
+        for item in partition_list:
+
+            item_quoted = item[:10] + "'" + item[10:] + "'"
+            item_stripped = item.split('=')[1]
+
+            drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                 " DROP PARTITION (" + item_quoted + ");")
+            add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                                 "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
+
+            try:
+                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(add_partition_sql)
+                execute_athena(add_partition_sql, database_name)
+                # LOGGER.info(add_partition_sql)
+            except Exception as err:
+                send_message_to_slack(err)
+                error_handler(sys.exc_info()[2].tb_lineno, err)
+                sys.exit(1)
+
+            try:
+                LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
+                LOGGER.debug(drop_partition_sql)
+                execute_athena(drop_partition_sql, database_name)
+                # LOGGER.info(drop_partition_sql)
+            except Exception as err:
+                send_message_to_slack(err)
+                error_handler(sys.exc_info()[2].tb_lineno, err)
+                sys.exit(1)
+
+        LOGGER.info("Complete.")
+
+    except Exception as err:
+        send_message_to_slack(err)
+        error_handler(sys.exc_info()[2].tb_lineno, err)
+
+def check_table(database_name, table_name):
+    """
+    Checks for the existence of a table in the Glue catalogue.
+
+    Args:
+        database_name  : the schema name in Athena
+        table_name     : the table name in Athena
+    Returns:
+
+        Glue response in JSON format
+    """
+
+    try:
+        response = GLUE.get_table(
+            DatabaseName=database_name,
+            Name=table_name
+        )
+        return response
+    except ClientError as err:
+        if err.response['Error']['Code'] in ('EntityNotFoundException'):
+            err = 'Table ' + database_name + '.' + table_name + ' not found!'
+            send_message_to_slack(err)
+            LOGGER.warning(err)
+        else:
+            send_message_to_slack(err)
+            error_handler(sys.exc_info()[2].tb_lineno, err)
+
 def main():
     """
     Main function to execute Athena queries
@@ -325,71 +498,34 @@ def main():
                 database_name = row["database_name"]
                 table_name = row["table_name"]
                 s3_location = row["s3_location"]
+                retention_period = row["retention_period"]
 
-                LOGGER.info('Processing %s.%s', database_name, table_name)
+                origin_table = check_table(database_name, table_name)
+                if origin_table:
 
-                sql = "show partitions " + database_name + "." + table_name
+                    archive_table = check_table(database_name, table_name + "_archive")
+                    if archive_table:
 
-                response = execute_athena(sql, database_name)
-                query_file = response['QueryExecution']['QueryExecutionId'] + '.txt'
-
-                # Sleep to allow file to be written to S3
-                time.sleep(1)
-
-                S3.download_file(ATHENA_LOG, query_file, "/APP/query.txt")
-
-                result_list = []
-
-                with open("/APP/query.txt") as file:
-                    for line in file:
-                        line = line.strip()
-                        result_list.append(line)
-
-                partition_list = []
-
-                for item in result_list:
-                    try:
-                        match = PATTERN.search(item).group(0)
-                    except:
-                        LOGGER.info("No match found.")
-                    if match <= str(MAXCLEARDOWN):
-                        partition_list.append(item)
-
-                for item in partition_list:
-                    item_quoted = item[:10] + "'" + item[10:] + "'"
-                    item_stripped = item.split('=')[1]
-
-                    drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
-                                         " DROP PARTITION (" + item_quoted + ");")
-                    add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
-                                         "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
-
-
-                    try:
-                        LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
-                        LOGGER.debug(drop_partition_sql)
-                        execute_athena(drop_partition_sql, database_name)
-                    except Exception as err:
-                        send_message_to_slack(err)
-                        error_handler(sys.exc_info()[2].tb_lineno, err)
-                        sys.exit(1)
-
-                    try:
-                        LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
-                        LOGGER.debug(add_partition_sql)
-                        execute_athena(add_partition_sql, database_name)
-                    except Exception as err:
-                        send_message_to_slack(err)
-                        error_handler(sys.exc_info()[2].tb_lineno, err)
-                        sys.exit(1)
-
-                LOGGER.info("Complete.")
+                        if retention_period == '2MonthsPlusCurrent':
+                            if TODAY != TODAY.replace(day=1):
+                                LOGGER.info('Ignoring %s.%s until the 1st of the month.', database_name, table_name)
+                            else:
+                                retention = str(TWOMONTHSPLUSCURRENT)
+                                partition(database_name, table_name, s3_location, retention)
+                        elif retention_period == '30Days':
+                            retention = str(THIRTYDAYS)
+                            partition(database_name, table_name, s3_location, retention)
+                        elif retention_period == 'PartitionMaxDate':
+                            days_to_keep = row["days_to_keep"]
+                            retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
+                            partitioned_by = row["partitioned_by"]
+                            partition_max_date(database_name, table_name, s3_location, retention, partitioned_by)
 
         LOGGER.info("Were done here.")
+
     except Exception as err:
         send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
-
 
 if __name__ == '__main__':
     main()

@@ -28,17 +28,27 @@ The CSV file must **not** be in utf-8.
 
 The layout of the CSV file is as follows:-
 
-|  database_name  |  table_name  |             s3_location             |
-| --------------- | ------------ | ----------------------------------- |
-|    database1    |    table1    | s3-bucket/path/to/partition/data/   |
-|    database1    |    table2    | s3-bucket/path/to/partition/data/   |
-|    database1    |    table3    | s3-bucket/path/to/partition/data/   |
-|    database2    |    table1    | s3-bucket/path/to/partition/data/   |
-|    database3    |    table1    | s3-bucket/path/to/partition/data/   |
+|  database_name  |  table_name  |             s3_location             |  retention_period  | days_to_keep | partitioned_by |
+| --------------- | ------------ | ----------------------------------- | ------------------ | ------------ | -------------- |
+|    database1    |    table1    | s3-bucket/path/to/partition/data/   | 2MonthsPlusCurrent |              |                |
+|    database1    |    table2    | s3-bucket/path/to/partition/data/   | 2MonthsPlusCurrent |              |                |
+|    database1    |    table3    | s3-bucket/path/to/partition/data/   | 2MonthsPlusCurrent |              |                |
+|    database2    |    table1    | s3-bucket/path/to/partition/data/   | 30Days             |              |                |
+|    database3    |    table1    | s3-bucket/path/to/partition/data/   | PartitionMaxDate   | 30           | date_local     |
 
-`database_name` - the name of the database (schema).
-`table_name` - the name of the table you want to archive the partitions from.
-`s3_location` - the location of the data in the partition you want to archive. Note, this should **not** include `s3://` at the beginning, only the bucket name and prefix (s3-bucket/path/to/partition/data/).
+* `database_name`    - the name of the database (schema).
+* `table_name`       - the name of the table you want to archive the partitions from.
+* `s3_location`      - the location of the data in the partition you want to archive. Note, this should **not** include  `s3://` at the beginning, only the bucket name and prefix (s3-bucket/path/to/partition/data/).
+* `retention_period` - the method of partitioning (explained below).
+* `days_to_keep`     - the number of days to keep (**not** required unless using PartitionMaxDate).
+* `partitioned_by`   - the column that MAX should be taken from (**not** required unless using PartitionMaxDate).
+
+## Partition retention options
+`retention_period` set in the CSV can contain one of 3 options:-
+
+* `2MonthsPlusCurrent` - Removes any partitions where the path_name is older than 2 months plus the current month.
+* `30Days`             - Removes any partitions where the path_name is older than 2 months plus the current month.
+* `PartitionMaxDate`   - Removes partitions where the MAX value of the column set in `partitioned_by` is older than the number of days set in `days_to_keep`.
 
 
 ## Variables
