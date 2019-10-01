@@ -321,7 +321,9 @@ def partition(database_name, table_name, s3_location, retention):
             try:
                 match = PATTERN.search(path_name).group(0)
                 if match <= str(retention):
-                    if path_name != 'path_name':
+                    if path_name.startswith('path_name='):
+                        partition_list.append(path_name)
+                    else:
                         partition_list.append("""path_name={0}""".format(path_name))
             except:
                 LOGGER.info("No match found.")
@@ -393,7 +395,9 @@ def partition_max_date(database_name, table_name, s3_location, retention, partit
             path_name = row['Data'][0]['VarCharValue']
             max_date = row['Data'][1]['VarCharValue']
             if max_date <= str(retention):
-                if path_name != 'path_name':
+                if path_name.startswith('path_name='):
+                    partition_list.append(path_name)
+                else:
                     partition_list.append("""path_name={0}""".format(path_name))
 
         for item in partition_list:
