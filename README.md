@@ -75,3 +75,9 @@ Run container
 ```
 docker run -e ATHENA_LOG=s3-athena-log -e AWS_ACCESS_KEY_ID=ABCDEFGHIJLMNOP -e AWS_SECRET_ACCESS_KEY=aBcDe1234+fghijklm01 -e AWS_DEFAULT_REGION=eu-west-2 -e CSV_S3_BUCKET="s3-bucket-containing-csv" -e CSV_S3_FILE="some/prefix/athena-archive-list.csv" athena
 ```
+
+## Useful commands
+Run a one time instance of the job:-
+```
+kubectl create job dq-athena-partition-maintenance --from=cronjob/dq-athena-partition-maintenance
+```
