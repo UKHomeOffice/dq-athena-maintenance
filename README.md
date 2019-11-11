@@ -81,3 +81,21 @@ Run a one time instance of the job:-
 ```
 kubectl create job dq-athena-partition-maintenance --from=cronjob/dq-athena-partition-maintenance
 ```
+
+There is a branch titled no-date-comparison which is a long-live branch. This branch has changes to the script whereby it:-
+* will run regardless of the date - the main script only runs some of the partition maintenance on the 1st of the month
+* Silences slack alerts
+* Ignores partitions that already exist.
+
+To deploy this branch:-
+
+`drone deploy UKHomeOffice/dq-athena-maintenance 102 production`
+
+`kubectl delete jobs dq-athena-partition-maintenance-one-off && kubectl create job dq-athena-partition-maintenance-one-off --from=cronjob/dq-athena-partition-maintenance && sleep 5 && kgp | grep dq-athena-partition-maintenance-one-off`
+
+This should start the job running. Use `kubectl logs -f dq-athena-partition-maintenance-one-off<pod_id>` to tail the logs.
+Once it has finished:-
+
+`kubectl delete jobs dq-athena-partition-maintenance-one-off`
+
+`drone deploy UKHomeOffice/dq-athena-maintenance X production` - where X is the latest production build.
