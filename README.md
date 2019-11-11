@@ -89,13 +89,19 @@ There is a branch titled no-date-comparison which is a long-live branch. This br
 
 To deploy this branch:-
 
-`drone deploy UKHomeOffice/dq-athena-maintenance 102 production`
-
-`kubectl delete jobs dq-athena-partition-maintenance-one-off && kubectl create job dq-athena-partition-maintenance-one-off --from=cronjob/dq-athena-partition-maintenance && sleep 5 && kgp | grep dq-athena-partition-maintenance-one-off`
+```
+drone deploy UKHomeOffice/dq-athena-maintenance 102 production
+```
+```
+kubectl delete jobs dq-athena-partition-maintenance-one-off && kubectl create job dq-athena-partition-maintenance-one-off --from=cronjob/dq-athena-partition-maintenance && sleep 5 && kgp | grep dq-athena-partition-maintenance-one-off
+```
 
 This should start the job running. Use `kubectl logs -f dq-athena-partition-maintenance-one-off<pod_id>` to tail the logs.
 Once it has finished:-
 
-`kubectl delete jobs dq-athena-partition-maintenance-one-off`
-
-`drone deploy UKHomeOffice/dq-athena-maintenance X production` - where X is the latest production build.
+```
+kubectl delete jobs dq-athena-partition-maintenance-one-off
+```
+```
+drone deploy UKHomeOffice/dq-athena-maintenance X production` - where X is the latest production build.
+```
