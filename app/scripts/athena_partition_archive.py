@@ -144,7 +144,7 @@ def send_message_to_slack(text):
     #         'The following error has occurred on line: %s',
     #         sys.exc_info()[2].tb_lineno)
     #     LOGGER.error(str(err))
-
+    
 def clear_down(sql):
     """
     After an Athena failure, delete the target path before the sql is retried
@@ -276,12 +276,6 @@ def execute_athena(sql, database_name):
                         LOGGER.warning(sql)
                         send_message_to_slack('Database / Table not found')
                         sys.exit(1)
-                    if "AlreadyExistsException" in state_change_reason:
-                        LOGGER.warning('Partition already exists - removing from archive table')
-                        partition_already_exists()
-                        time.sleep((2 ** i) + random.random())
-                        i += 1
-
                     else:
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
@@ -295,11 +289,6 @@ def execute_athena(sql, database_name):
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
     return response
-
-def partition_already_exists(database_name, table_name, ):
-    item_quoted = item[:10] + "'" + item[10:] + "'"
-    drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
-                         " DROP PARTITION (" + item_quoted + ");")
 
 def partition(database_name, table_name, s3_location, retention):
     """
@@ -523,8 +512,8 @@ def main():
                     if archive_table:
 
                         if retention_period == '2MonthsPlusCurrent':
-                            retention = str(TWOMONTHSPLUSCURRENT)
-                            partition(database_name, table_name, s3_location, retention)
+                                retention = str(TWOMONTHSPLUSCURRENT)
+                                partition(database_name, table_name, s3_location, retention)
                         elif retention_period == '30Days':
                             retention = str(THIRTYDAYS)
                             partition(database_name, table_name, s3_location, retention)
