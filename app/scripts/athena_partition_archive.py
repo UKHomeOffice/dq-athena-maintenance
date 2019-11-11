@@ -144,7 +144,7 @@ def send_message_to_slack(text):
     #         'The following error has occurred on line: %s',
     #         sys.exc_info()[2].tb_lineno)
     #     LOGGER.error(str(err))
-    
+
 def clear_down(sql):
     """
     After an Athena failure, delete the target path before the sql is retried
@@ -276,6 +276,9 @@ def execute_athena(sql, database_name):
                         LOGGER.warning(sql)
                         send_message_to_slack('Database / Table not found')
                         sys.exit(1)
+                    if "Partition already exists" in state_change_reason:
+                        LOGGER.info('Partition already eists - continuing')
+                        break
                     else:
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
