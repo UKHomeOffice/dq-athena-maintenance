@@ -511,11 +511,8 @@ def main():
                     if archive_table:
 
                         if retention_period == '2MonthsPlusCurrent':
-                            if TODAY != TODAY.replace(day=1):
-                                LOGGER.info('Ignoring %s.%s until the 1st of the month.', database_name, table_name)
-                            else:
-                                retention = str(TWOMONTHSPLUSCURRENT)
-                                partition(database_name, table_name, s3_location, retention)
+                            retention = str(TWOMONTHSPLUSCURRENT)
+                            partition(database_name, table_name, s3_location, retention)
                         elif retention_period == '30Days':
                             retention = str(THIRTYDAYS)
                             partition(database_name, table_name, s3_location, retention)
