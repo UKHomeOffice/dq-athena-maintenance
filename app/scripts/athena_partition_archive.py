@@ -80,69 +80,70 @@ def error_handler(lineno, error):
     raise Exception("https://{0}.console.aws.amazon.com/cloudwatch/home?region={0}#logEventViewer:group={1};stream={2}".format(region, LOG_GROUP_NAME, LOG_STREAM_NAME))
 
 def send_message_to_slack(text):
-    """
-    Formats the text provides and posts to a specific Slack web app's URL
-
-    Args:
-        text : the message to be displayed on the Slack channel
-
-    Returns:
-        Slack API repsonse
-    """
-
-
-    try:
-        post = {
-            "text": ":fire: :sad_parrot: An error has occured in the *Athena Partition Maintenace* pod :sad_parrot: :fire:",
-            "attachments": [
-                {
-                    "text": "{0}".format(text),
-                    "color": "#B22222",
-                    "attachment_type": "default",
-                    "fields": [
-                        {
-                            "title": "Priority",
-                            "value": "High",
-                            "short": "false"
-                        }
-                    ],
-                    "footer": "Kubernetes API",
-                    "footer_icon": "https://platform.slack-edge.com/img/default_application_icon.png"
-                }
-            ]
-            }
-
-        ssm_param_name = 'slack_notification_webhook'
-        ssm = boto3.client('ssm', config=CONFIG)
-        try:
-            response = ssm.get_parameter(Name=ssm_param_name, WithDecryption=True)
-        except ClientError as err:
-            if err.response['Error']['Code'] == 'ParameterNotFound':
-                LOGGER.info('Slack SSM parameter %s not found. No notification sent', ssm_param_name)
-                return
-            else:
-                LOGGER.error("Unexpected error when attempting to get Slack webhook URL: %s", err)
-                return
-        if 'Value' in response['Parameter']:
-            url = response['Parameter']['Value']
-
-            json_data = json.dumps(post)
-            req = urllib.request.Request(
-                url,
-                data=json_data.encode('ascii'),
-                headers={'Content-Type': 'application/json'})
-            LOGGER.info('Sending notification to Slack')
-            response = urllib.request.urlopen(req)
-
-        else:
-            LOGGER.info('Value for Slack SSM parameter %s not found. No notification sent', ssm_param_name)
-            return
-
-    except Exception as err:
-        LOGGER.error(
-            'The following error has occurred on line: %s',
-            sys.exc_info()[2].tb_lineno)
-        LOGGER.error(str(err))
+    LOGGER.info("Message not sent to slack.")
+    # """
+    # Formats the text provides and posts to a specific Slack web app's URL
+    #
+    # Args:
+    #     text : the message to be displayed on the Slack channel
+    #
+    # Returns:
+    #     Slack API repsonse
+    # """
+    #
+    #
+    # try:
+    #     post = {
+    #         "text": ":fire: :sad_parrot: An error has occured in the *Athena Partition Maintenace* pod :sad_parrot: :fire:",
+    #         "attachments": [
+    #             {
+    #                 "text": "{0}".format(text),
+    #                 "color": "#B22222",
+    #                 "attachment_type": "default",
+    #                 "fields": [
+    #                     {
+    #                         "title": "Priority",
+    #                         "value": "High",
+    #                         "short": "false"
+    #                     }
+    #                 ],
+    #                 "footer": "Kubernetes API",
+    #                 "footer_icon": "https://platform.slack-edge.com/img/default_application_icon.png"
+    #             }
+    #         ]
+    #         }
+    #
+    #     ssm_param_name = 'slack_notification_webhook'
+    #     ssm = boto3.client('ssm', config=CONFIG)
+    #     try:
+    #         response = ssm.get_parameter(Name=ssm_param_name, WithDecryption=True)
+    #     except ClientError as err:
+    #         if err.response['Error']['Code'] == 'ParameterNotFound':
+    #             LOGGER.info('Slack SSM parameter %s not found. No notification sent', ssm_param_name)
+    #             return
+    #         else:
+    #             LOGGER.error("Unexpected error when attempting to get Slack webhook URL: %s", err)
+    #             return
+    #     if 'Value' in response['Parameter']:
+    #         url = response['Parameter']['Value']
+    #
+    #         json_data = json.dumps(post)
+    #         req = urllib.request.Request(
+    #             url,
+    #             data=json_data.encode('ascii'),
+    #             headers={'Content-Type': 'application/json'})
+    #         LOGGER.info('Sending notification to Slack')
+    #         response = urllib.request.urlopen(req)
+    #
+    #     else:
+    #         LOGGER.info('Value for Slack SSM parameter %s not found. No notification sent', ssm_param_name)
+    #         return
+    #
+    # except Exception as err:
+    #     LOGGER.error(
+    #         'The following error has occurred on line: %s',
+    #         sys.exc_info()[2].tb_lineno)
+    #     LOGGER.error(str(err))
 
 def clear_down(sql):
     """
@@ -275,6 +276,12 @@ def execute_athena(sql, database_name):
                         LOGGER.warning(sql)
                         send_message_to_slack('Database / Table not found')
                         sys.exit(1)
+                    if "AlreadyExistsException" in state_change_reason:
+                        LOGGER.warning('Partition already exists - removing from archive table')
+                        partition_already_exists()
+                        time.sleep((2 ** i) + random.random())
+                        i += 1
+
                     else:
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
@@ -288,6 +295,11 @@ def execute_athena(sql, database_name):
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
     return response
+
+def partition_already_exists(database_name, table_name, ):
+    item_quoted = item[:10] + "'" + item[10:] + "'"
+    drop_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
+                         " DROP PARTITION (" + item_quoted + ");")
 
 def partition(database_name, table_name, s3_location, retention):
     """
