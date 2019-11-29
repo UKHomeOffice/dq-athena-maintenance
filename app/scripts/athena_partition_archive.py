@@ -289,7 +289,7 @@ def execute_athena(sql, database_name):
 
     return response
 
-def partition(database_name, table_name, s3_location, retention):
+def partition(database_name, table_name, s3_location, retention, drop_only):
     """
     Gets a list of partitions from Athena, then removes partitions based on the retention period.
 
@@ -338,14 +338,17 @@ def partition(database_name, table_name, s3_location, retention):
             add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
                                  "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
-            try:
-                LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
-                LOGGER.debug(add_partition_sql)
-                execute_athena(add_partition_sql, database_name)
-            except Exception as err:
-                send_message_to_slack(err)
-                error_handler(sys.exc_info()[2].tb_lineno, err)
-                sys.exit(1)
+            if drop_only == True:
+                continue
+            else:
+                try:
+                    LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
+                    LOGGER.debug(add_partition_sql)
+                    execute_athena(add_partition_sql, database_name)
+                except Exception as err:
+                    send_message_to_slack(err)
+                    error_handler(sys.exc_info()[2].tb_lineno, err)
+                    sys.exit(1)
 
             try:
                 LOGGER.info('Dropping partition "%s" from "%s.%s"', item, database_name, table_name)
@@ -494,6 +497,8 @@ def main():
         send_message_to_slack(err)
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
+    drop_only = False
+
     try:
         with open("/APP/list.csv") as csv_file:
             csv_reader = csv.DictReader(csv_file)
@@ -515,15 +520,20 @@ def main():
                                 LOGGER.info('Ignoring %s.%s until the 1st of the month.', database_name, table_name)
                             else:
                                 retention = str(TWOMONTHSPLUSCURRENT)
-                                partition(database_name, table_name, s3_location, retention)
+                                partition(database_name, table_name, s3_location, retention, drop_only)
                         elif retention_period == '30Days':
                             retention = str(THIRTYDAYS)
-                            partition(database_name, table_name, s3_location, retention)
+                            partition(database_name, table_name, s3_location, retention, drop_only)
+                        elif retention_period == '30DaysDropOnly':
+                            retention = str(THIRTYDAYS)
+                            drop_only = True
+                            partition(database_name, table_name, s3_location, retention, drop_only)
                         elif retention_period == 'PartitionMaxDate':
                             days_to_keep = row["days_to_keep"]
                             retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
                             partitioned_by = row["partitioned_by"]
                             partition_max_date(database_name, table_name, s3_location, retention, partitioned_by)
+
 
         LOGGER.info("Were done here.")
 
