@@ -339,7 +339,7 @@ def partition(database_name, table_name, s3_location, retention, drop_only):
                                  "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
             if drop_only == True:
-                continue
+                pass
             else:
                 try:
                     LOGGER.info('Adding partition "%s" from "%s.%s"', item, database_name, table_name)
