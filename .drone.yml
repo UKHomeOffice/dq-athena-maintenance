@@ -18,7 +18,7 @@ pipeline:
     environment:
       - KUBE_NAMESPACE=dq-apps-notprod
       - INSECURE_SKIP_TLS_VERIFY=true
-      - KUBE_SCHEDULE="05 11 * * *"
+      - KUBE_SCHEDULE="45 12 * * *"
     commands:
       - export KUBE_TOKEN=$$NOTPROD_KUBE_TOKEN
       - export KUBE_SERVER=$$NOTPROD_KUBE_SERVER
