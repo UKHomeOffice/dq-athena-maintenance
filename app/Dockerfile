@@ -1,4 +1,4 @@
-FROM quay.io/ukhomeofficedigital/python-alpine:3.7.6-alpine3.11
+FROM quay.io/ukhomeofficedigital/dq-python-alpine:${PYTHON_ALPINE_VERSION}
 
 ENV USERMAP_UID 1000
 WORKDIR /APP

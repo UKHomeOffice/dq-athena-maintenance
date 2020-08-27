@@ -1,3 +1,7 @@
+matrix:
+  PYTHON_ALPINE_VERSION:
+    - 3
+
 pipeline:
 
   build:
@@ -9,6 +13,7 @@ pipeline:
     dockerfile: app/Dockerfile
     force_tag: true
     tags:
+      - PYTHON_ALPINE_VERSION=${PYTHON_ALPINE_VERSION}
       - ${DRONE_COMMIT_SHA}
     when:
       event: push
