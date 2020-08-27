@@ -1,3 +1,5 @@
+ARG PYTHON_ALPINE_VERSION=${PYTHON_ALPINE_VERSION}
+
 FROM quay.io/ukhomeofficedigital/dq-python-alpine:${PYTHON_ALPINE_VERSION}
 
 ENV USERMAP_UID 1000
