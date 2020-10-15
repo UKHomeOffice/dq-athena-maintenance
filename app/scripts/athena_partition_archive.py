@@ -65,6 +65,90 @@ S3 = boto3.client('s3')
 ATHENA = boto3.client('athena', config=CONFIG)
 GLUE = boto3.client('glue', config=CONFIG)
 
+# Below functions have been added  as part of improvements to the
+# maintenance script so it uses glue API's to drop and create partitions.
+
+def create_partition(partlist, database_name, table_name):
+    """
+    Function that calls glue's batch create partition API.
+    Pass atleast Values and Location as part of partlist
+    Args:
+        database_name    : Athena Database name
+        table_name       : Athena Table name
+        partition_val    : List of Partition names(Values) and Strage Locators.
+    """
+    LOGGER.info('Creating Partitions: %s', partlist)
+    try:
+        GLUE.batch_create_partition(
+            DatabaseName=database_name,
+            TableName=table_name,
+            PartitionInputList=partlist
+            )
+    except Exception as err:
+        error_handler(sys.exc_info()[2].tb_lineno, err)
+
+
+def execute_glue_api_delete(database_name, tb_name, partition_val):
+    """
+    Function that calls glue's batch delete partition API.
+    Remove Storage Descriptor Object if exists in input before passing to
+    partition_val.
+    Args:
+        database_name       : Athena Database name
+        table_name          : Athena Table name
+        partition_val       : List of Partition names(Values)
+    """
+    try:
+
+        GLUE.batch_delete_partition(
+            DatabaseName=database_name,
+            TableName=tb_name, PartitionsToDelete=partition_val)
+        LOGGER.info('Dropped Partitions: %s', partition_val)
+    except ClientError as err:
+        if err.response['Error']['Code'] in 'EntityNotFoundException':
+            err = 'Table ' + database_name + '.' + tb_name + ' partitions'  + ' not found!'
+            LOGGER.warning(err)
+        else:
+            error_handler(sys.exc_info()[2].tb_lineno, err)
+
+
+def get_partitions(database, table, retention):
+    """
+    Returns List of Partitions older than retention period.
+    Args:
+
+    database_name: Athena Database name
+    table_name   : Athena Table name
+    retention    : date beyond which older partitions will be dropped
+    Returns:
+        A list of partitions
+    """
+
+    myexp = f"path_name < '{retention}' "
+    print(myexp)
+    try:
+        kwargs = {
+            'DatabaseName' : database,
+            'TableName' : table,
+            'MaxResults' : 25,
+            'Expression' : myexp,
+            }
+
+        while True:
+            resp = GLUE.get_partitions(**kwargs)
+            listb = [{'Values': d['Values'], 'StorageDescriptor': d['StorageDescriptor']} for d in resp['Partitions']]
+            partx = [[]]
+            for val in listb:
+                partx[0].append(val)
+            yield from partx
+            try:
+                kwargs['NextToken'] = resp['NextToken']
+            except KeyError as err:
+                break
+    except Exception as err:
+        error_handler(sys.exc_info()[2].tb_lineno, err)
+
+
 def error_handler(lineno, error):
     """
     Error Handler
@@ -458,7 +542,7 @@ def check_table(database_name, table_name):
         )
         return response
     except ClientError as err:
-        if err.response['Error']['Code'] in ('EntityNotFoundException'):
+        if err.response['Error']['Code'] in 'EntityNotFoundException':
             err = 'Table ' + database_name + '.' + table_name + ' not found!'
             send_message_to_slack(err)
             LOGGER.warning(err)
@@ -520,14 +604,28 @@ def main():
                                 LOGGER.info('Ignoring %s.%s until the 1st of the month.', database_name, table_name)
                             else:
                                 retention = str(TWOMONTHSPLUSCURRENT)
-                                partition(database_name, table_name, s3_location, retention, drop_only)
+                                #partition(database_name, table_name, s3_location, retention, drop_only)
+                                for parts in get_partitions(database_name, table_name, retention):
+                                    create_partition(parts, database_name, f'{table_name}_archive')
+                                    for d in parts:
+                                        del d['StorageDescriptor']
+                                    execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == '30Days':
                             retention = str(THIRTYDAYS)
-                            partition(database_name, table_name, s3_location, retention, drop_only)
+                            #partition(database_name, table_name, s3_location, retention, drop_only)
+                            for parts in get_partitions(database_name, table_name, retention):
+                                create_partition(parts, database_name, f'{table_name}_archive')
+                                for d in parts:
+                                    del d['StorageDescriptor']
+                                execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == '30DaysDropOnly':
                             retention = str(THIRTYDAYS)
-                            drop_only = True
-                            partition(database_name, table_name, s3_location, retention, drop_only)
+                            #drop_only = True
+                            #partition(database_name, table_name, s3_location, retention, drop_only)
+                            for parts in get_partitions(database_name, table_name, retention):
+                                for d in parts:
+                                    del d['StorageDescriptor']
+                                execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == 'PartitionMaxDate':
                             days_to_keep = row["days_to_keep"]
                             retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
