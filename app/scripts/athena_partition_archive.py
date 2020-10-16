@@ -68,27 +68,29 @@ GLUE = boto3.client('glue', config=CONFIG)
 # Below functions have been added  as part of improvements to the
 # maintenance script so it uses glue API's to drop and create partitions.
 
-def create_partition(partlist, database_name, table_name):
+def create_partition(partition_val, database_name, table_name):
     """
     Function that calls glue's batch create partition API.
-    Pass atleast Values and Location as part of partlist
+    Pass atleast Values and Location as part of partition_val
     Args:
+        partition_val    : List of Partition names(Values) and Strage Locators.
         database_name    : Athena Database name
         table_name       : Athena Table name
-        partition_val    : List of Partition names(Values) and Strage Locators.
+    Returns:
+             None
     """
-    LOGGER.info('Creating Partitions: %s', partlist)
+    LOGGER.info('Creating Partitions: %s', partition_val)
     try:
         GLUE.batch_create_partition(
             DatabaseName=database_name,
             TableName=table_name,
-            PartitionInputList=partlist
+            PartitionInputList=partition_val
             )
     except Exception as err:
         error_handler(sys.exc_info()[2].tb_lineno, err)
 
 
-def execute_glue_api_delete(database_name, tb_name, partition_val):
+def execute_glue_api_delete(database_name, table_name, partition_val):
     """
     Function that calls glue's batch delete partition API.
     Remove Storage Descriptor Object if exists in input before passing to
@@ -97,29 +99,31 @@ def execute_glue_api_delete(database_name, tb_name, partition_val):
         database_name       : Athena Database name
         table_name          : Athena Table name
         partition_val       : List of Partition names(Values)
+    Returns:
+             None
     """
     try:
 
         GLUE.batch_delete_partition(
             DatabaseName=database_name,
-            TableName=tb_name, PartitionsToDelete=partition_val)
+            TableName=table_name, PartitionsToDelete=partition_val)
         LOGGER.info('Dropped Partitions: %s', partition_val)
     except ClientError as err:
         if err.response['Error']['Code'] in 'EntityNotFoundException':
-            err = 'Table ' + database_name + '.' + tb_name + ' partitions'  + ' not found!'
+            err = 'Table ' + database_name + '.' + table_name + ' partitions'  + ' not found!'
             LOGGER.warning(err)
         else:
             error_handler(sys.exc_info()[2].tb_lineno, err)
 
 
-def get_partitions(database, table, retention):
+def get_partitions(database_name, table_name, retention):
     """
     Returns List of Partitions older than retention period.
     Args:
 
-    database_name: Athena Database name
-    table_name   : Athena Table name
-    retention    : date beyond which older partitions will be dropped
+    database_name : Athena Database name
+    table_name    : Athena Table name
+    retention     : date beyond which older partitions will be dropped
     Returns:
         A list of partitions
     """
@@ -128,10 +132,10 @@ def get_partitions(database, table, retention):
     print(myexp)
     try:
         kwargs = {
-            'DatabaseName' : database,
-            'TableName' : table,
-            'MaxResults' : 25,
-            'Expression' : myexp,
+            'DatabaseName' : database_name,
+            'TableName'    : table_name,
+            'MaxResults'   : 25,
+            'Expression'   : myexp,
             }
 
         while True:
@@ -177,7 +181,8 @@ def send_message_to_slack(text):
 
     try:
         post = {
-            "text": ":fire: :sad_parrot: An error has occured in the *Athena Partition Maintenace* pod :sad_parrot: :fire:",
+            "text": ":fire: :sad_parrot: An error has occured in the *Athena \
+            Partition Maintenace* pod :sad_parrot: :fire:",
             "attachments": [
                 {
                     "text": "{0}".format(text),
@@ -202,7 +207,8 @@ def send_message_to_slack(text):
             response = ssm.get_parameter(Name=ssm_param_name, WithDecryption=True)
         except ClientError as err:
             if err.response['Error']['Code'] == 'ParameterNotFound':
-                LOGGER.info('Slack SSM parameter %s not found. No notification sent', ssm_param_name)
+                LOGGER.info('Slack SSM parameter %s not found. \
+                No notification sent', ssm_param_name)
                 return
             else:
                 LOGGER.error("Unexpected error when attempting to get Slack webhook URL: %s", err)
@@ -219,7 +225,8 @@ def send_message_to_slack(text):
             response = urllib.request.urlopen(req)
 
         else:
-            LOGGER.info('Value for Slack SSM parameter %s not found. No notification sent', ssm_param_name)
+            LOGGER.info('Value for Slack SSM parameter %s not found. \
+            No notification sent', ssm_param_name)
             return
 
     except Exception as err:
@@ -322,7 +329,8 @@ def execute_athena(sql, database_name):
                         'TooManyRequestsException',
                         'ThrottlingException',
                         'SlowDown'):
-                    LOGGER.info('athena.start_query_execution throttled. Waiting %s second(s) before trying again', 2 ** i)
+                    LOGGER.info('athena.start_query_execution throttled. \
+                    Waiting %s second(s) before trying again', 2 ** i)
                     time.sleep((2 ** i) + random.random())
                 else:
                     raise err
@@ -333,7 +341,8 @@ def execute_athena(sql, database_name):
                 response = check_query_status(response['QueryExecutionId'])
                 if response['QueryExecution']['Status']['State'] == 'CANCELLED':
                     LOGGER.warning(response)
-                    LOGGER.debug('SQL query cancelled. Waiting %s second(s) before trying again', 2 ** i)
+                    LOGGER.debug('SQL query cancelled. Waiting %s second(s) \
+                    before trying again', 2 ** i)
                     time.sleep((2 ** i) + random.random())
                     i += 1
                     clear_down(sql)
@@ -350,7 +359,8 @@ def execute_athena(sql, database_name):
                        or "HIVE_CANNOT_OPEN_SPLIT" in state_change_reason \
                        or compiled.match(state_change_reason) \
                        or compiled_not_found.match(state_change_reason):
-                        LOGGER.debug('SQL query failed. Waiting %s second(s) before trying again', 2 ** i)
+                        LOGGER.debug('SQL query failed. Waiting %s second(s) \
+                        before trying again', 2 ** i)
                         time.sleep((2 ** i) + random.random())
                         i += 1
                         clear_down(sql)
@@ -361,7 +371,8 @@ def execute_athena(sql, database_name):
                         sys.exit(1)
                     else:
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
-                        LOGGER.error('SQL query failed and this type of error will not be retried. Exiting with failure.')
+                        LOGGER.error('SQL query failed and this type of error \
+                        will not be retried. Exiting with failure.')
                         sys.exit(1)
                 elif response['QueryExecution']['Status']['State'] == 'SUCCEEDED':
                     LOGGER.debug('SQL statement completed successfully')
@@ -422,7 +433,7 @@ def partition(database_name, table_name, s3_location, retention, drop_only):
             add_partition_sql = ("ALTER TABLE " + database_name + "." + table_name + \
                                  "_archive ADD PARTITION (" + item_quoted + ") LOCATION 's3://" + s3_location + "/" + item_stripped + "';")
 
-            if drop_only == True:
+            if drop_only:
                 pass
             else:
                 try:
@@ -459,14 +470,16 @@ def partition_max_date(database_name, table_name, s3_location, retention, partit
         table_name     : the table name in Athena
         s3_location    : the S3 location of the data in the schema
         retention      : retention period / days to keep
-        partitioned_by : what the table is partitioned by which is used to work out the MAX date
+        partitioned_by : what the table is partitioned by which is used to
+                         work out the MAX date
 
     Returns:
         None
     """
 
     try:
-        LOGGER.info('Processing %s.%s, removing partitions where the MAX date of %s is older than %s.', database_name, table_name, partitioned_by, retention)
+        LOGGER.info('Processing %s.%s, removing partitions where the MAX date \
+        of %s is older than %s.', database_name, table_name, partitioned_by, retention)
 
         sql = "select path_name, MAX(" + partitioned_by + ") from " + database_name + "." + table_name + " group by path_name;"
 
@@ -607,33 +620,34 @@ def main():
                                 #partition(database_name, table_name, s3_location, retention, drop_only)
                                 for parts in get_partitions(database_name, table_name, retention):
                                     create_partition(parts, database_name, f'{table_name}_archive')
-                                    for d in parts:
-                                        del d['StorageDescriptor']
+                                    for desc in parts:
+                                        del desc['StorageDescriptor']
                                     execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == '30Days':
                             retention = str(THIRTYDAYS)
                             #partition(database_name, table_name, s3_location, retention, drop_only)
                             for parts in get_partitions(database_name, table_name, retention):
                                 create_partition(parts, database_name, f'{table_name}_archive')
-                                for d in parts:
-                                    del d['StorageDescriptor']
+                                for desc in parts:
+                                    del desc['StorageDescriptor']
                                 execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == '30DaysDropOnly':
                             retention = str(THIRTYDAYS)
                             #drop_only = True
                             #partition(database_name, table_name, s3_location, retention, drop_only)
                             for parts in get_partitions(database_name, table_name, retention):
-                                for d in parts:
-                                    del d['StorageDescriptor']
+                                for desc in parts:
+                                    del desc['StorageDescriptor']
                                 execute_glue_api_delete(database_name, table_name, parts)
                         elif retention_period == 'PartitionMaxDate':
                             days_to_keep = row["days_to_keep"]
                             retention = (datetime.date.today() - datetime.timedelta(days=int(days_to_keep)))
                             partitioned_by = row["partitioned_by"]
-                            partition_max_date(database_name, table_name, s3_location, retention, partitioned_by)
+                            partition_max_date(database_name, table_name,
+                                               s3_location, retention, partitioned_by)
 
 
-        LOGGER.info("Were done here.")
+        LOGGER.info("We are done here.")
 
     except Exception as err:
         send_message_to_slack(err)
