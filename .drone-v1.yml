@@ -1,0 +1,134 @@
+---
+kind: pipeline
+name: matrix-1
+type: kubernetes
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build_and_push_image
+  pull: if-not-exists
+  image: plugins/docker
+  settings:
+    build_args:
+    - PYTHON_ALPINE_VERSION=3
+    context: app
+    dockerfile: app/Dockerfile
+    force_tag: true
+    registry: quay.io
+    repo: quay.io/ukhomeofficedigital/dq-athena-maintenance
+    tags:
+    - latest
+    - ${DRONE_COMMIT_SHA}
+    - b${DRONE_BUILD_NUMBER}
+  environment:
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+    DOCKER_USERNAME:
+      from_secret: docker_username
+  when:
+    event:
+    - push
+
+- name: Anchore Scan
+  image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/anchore-submission:latest
+  pull: always
+  environment:
+    #NOTE: Image name can't be a variable here!
+    IMAGE_NAME: quay.io/ukhomeofficedigital/dq-athena-maintenance:${DRONE_COMMIT_SHA}
+    LOCAL_IMAGE: false
+    SHOW_ALL_VULNERABILITIES: true
+    TOLERATE: medium
+    FAIL_ON_DETECTION: false
+  when:
+    event:
+      - push
+
+- name: deploy_to_dev
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/kd
+  commands:
+  - export KUBE_TOKEN=$$NOTPROD_KUBE_TOKEN
+  - export KUBE_SERVER=$$NOTPROD_KUBE_SERVER
+  - export ATHENA_LOG=$$NOTPROD_ATHENA_LOG
+  - export CSV_S3_BUCKET=$$NOTPROD_CSV_S3_BUCKET
+  - export CSV_S3_FILE=$$NOTPROD_CSV_S3_FILE
+  - export AWS_ACCESS_KEY_ID=$$NOTPROD_AWS_ACCESS_KEY_ID
+  - export AWS_SECRET_ACCESS_KEY=$$NOTPROD_AWS_SECRET_ACCESS_KEY
+  - export AWS_DEFAULT_REGION=$$NOTPROD_AWS_DEFAULT_REGION
+  - kd -f kube/secret.yml
+  - kd --replace -f kube/cronjob.yml
+  environment:
+    INSECURE_SKIP_TLS_VERIFY: true
+    KUBE_NAMESPACE: dq-apps-notprod
+    KUBE_SCHEDULE: "\"0 */12 * * *\""
+    NOTPROD_ATHENA_LOG:
+      from_secret: NOTPROD_ATHENA_LOG
+    NOTPROD_AWS_ACCESS_KEY_ID:
+      from_secret: NOTPROD_AWS_ACCESS_KEY_ID
+    NOTPROD_AWS_DEFAULT_REGION:
+      from_secret: NOTPROD_AWS_DEFAULT_REGION
+    NOTPROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: NOTPROD_AWS_SECRET_ACCESS_KEY
+    NOTPROD_CSV_S3_BUCKET:
+      from_secret: NOTPROD_CSV_S3_BUCKET
+    NOTPROD_CSV_S3_FILE:
+      from_secret: NOTPROD_CSV_S3_FILE
+    NOTPROD_KUBE_SERVER:
+      from_secret: NOTPROD_KUBE_SERVER
+    NOTPROD_KUBE_TOKEN:
+      from_secret: NOTPROD_KUBE_TOKEN
+  when:
+    event:
+    - push
+
+- name: deploy_to_prod
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/kd
+  commands:
+  - export KUBE_TOKEN=$$PROD_KUBE_TOKEN
+  - export KUBE_SERVER=$$PROD_KUBE_SERVER
+  - export ATHENA_LOG=$$PROD_ATHENA_LOG
+  - export CSV_S3_BUCKET=$$PROD_CSV_S3_BUCKET
+  - export CSV_S3_FILE=$$PROD_CSV_S3_FILE
+  - export AWS_ACCESS_KEY_ID=$$PROD_AWS_ACCESS_KEY_ID
+  - export AWS_SECRET_ACCESS_KEY=$$PROD_AWS_SECRET_ACCESS_KEY
+  - export AWS_DEFAULT_REGION=$$PROD_AWS_DEFAULT_REGION
+  - kd -f kube/secret.yml
+  - kd --replace -f kube/cronjob.yml
+  environment:
+    INSECURE_SKIP_TLS_VERIFY: true
+    KUBE_NAMESPACE: dq-apps
+    KUBE_SCHEDULE: "\"0 */12 * * *\""
+    PROD_ATHENA_LOG:
+      from_secret: PROD_ATHENA_LOG
+    PROD_AWS_ACCESS_KEY_ID:
+      from_secret: PROD_AWS_ACCESS_KEY_ID
+    PROD_AWS_DEFAULT_REGION:
+      from_secret: PROD_AWS_DEFAULT_REGION
+    PROD_AWS_SECRET_ACCESS_KEY:
+      from_secret: PROD_AWS_SECRET_ACCESS_KEY
+    PROD_CSV_S3_BUCKET:
+      from_secret: PROD_CSV_S3_BUCKET
+    PROD_CSV_S3_FILE:
+      from_secret: PROD_CSV_S3_FILE
+    PROD_KUBE_SERVER:
+      from_secret: PROD_KUBE_SERVER
+    PROD_KUBE_TOKEN:
+      from_secret: PROD_KUBE_TOKEN
+  when:
+    event:
+    - promote
+    target:
+    - production
+
+services:
+  - name: docker
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+  - name: anchore-submission-server
+    image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/anchore-submission:latest
+    pull: always
+    commands:
+      - /run.sh server
