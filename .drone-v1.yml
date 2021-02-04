@@ -8,9 +8,9 @@ platform:
   arch: amd64
 
 steps:
-- name: build
+- name: build_and_push_image
   pull: if-not-exists
-  image: 340268328991.dkr.ecr.eu-west-2.amazonaws.com/acp/dind
+  image: plugins/docker
   settings:
     build_args:
     - PYTHON_ALPINE_VERSION=3
@@ -19,7 +19,10 @@ steps:
     force_tag: true
     registry: quay.io
     repo: quay.io/ukhomeofficedigital/dq-athena-maintenance
-    tags: ${DRONE_COMMIT_SHA}
+    tags:
+    - latest
+    - ${DRONE_COMMIT_SHA}
+    - b${DRONE_BUILD_NUMBER}
   environment:
     DOCKER_PASSWORD:
       from_secret: docker_password
