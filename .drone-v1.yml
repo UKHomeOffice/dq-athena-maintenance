@@ -101,7 +101,7 @@ steps:
   environment:
     INSECURE_SKIP_TLS_VERIFY: true
     KUBE_NAMESPACE: dq-apps
-    KUBE_SCHEDULE: "\"0 */12 * * *\""
+    KUBE_SCHEDULE: "\"0 */17 * * *\""
     PROD_ATHENA_LOG:
       from_secret: PROD_ATHENA_LOG
     PROD_AWS_ACCESS_KEY_ID:
