@@ -343,6 +343,7 @@ def execute_athena(sql, database_name):
                     LOGGER.warning(response)
                     LOGGER.debug('SQL query cancelled. Waiting %s second(s) \
                     before trying again', 2 ** i)
+                    LOGGER.warning(sql)
                     time.sleep((2 ** i) + random.random())
                     i += 1
                     clear_down(sql)
@@ -361,6 +362,7 @@ def execute_athena(sql, database_name):
                        or compiled_not_found.match(state_change_reason):
                         LOGGER.debug('SQL query failed. Waiting %s second(s) \
                         before trying again', 2 ** i)
+                        LOGGER.warning(sql)
                         time.sleep((2 ** i) + random.random())
                         i += 1
                         clear_down(sql)
@@ -373,6 +375,7 @@ def execute_athena(sql, database_name):
                         send_message_to_slack('SQL query failed and this type of error will not be retried. Exiting with failure.')
                         LOGGER.error('SQL query failed and this type of error \
                         will not be retried. Exiting with failure.')
+                        LOGGER.warning(sql)
                         sys.exit(1)
                 elif response['QueryExecution']['Status']['State'] == 'SUCCEEDED':
                     LOGGER.debug('SQL statement completed successfully')
