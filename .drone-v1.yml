@@ -48,7 +48,7 @@ steps:
   image: plugins/docker
   settings:
     build_args:
-    - PYTHON_ALPINE_VERSION=16
+    - PYTHON_ALPINE_VERSION=b16
     context: app
     dockerfile: app/Dockerfile
     force_tag: true
