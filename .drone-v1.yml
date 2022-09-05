@@ -20,12 +20,11 @@ x-anchors:
     # Update the token TTL to 10mins
     - vault lease renew -increment=600 $${LEASE_ID}
     # Get the AWS credentials
-    - echo "export AWS_ACCESS_KEY_ID=$(cat aws_creds.json | grep access_key | awk -F ' ' '{print $2}')" > set_drone_secrets.sh
-    - echo "export AWS_SECRET_ACCESS_KEY=$(cat aws_creds.json | grep secret_key | awk -F ' ' '{print $2}')" >> set_drone_secrets.sh
-    - echo "export AWS_DEFAULT_REGION=eu-west-2" >> set_drone_secrets.sh
+    - export AWS_ACCESS_KEY_ID=$(cat aws_creds.json | grep access_key | awk -F ' ' '{print $2}')
+    - export AWS_SECRET_ACCESS_KEY=$(cat aws_creds.json | grep secret_key | awk -F ' ' '{print $2}')
+    - export AWS_DEFAULT_REGION=eu-west-2
     # Since AWS is eventually consistent we need to sleep a little while so the AWS key is created and made available
     - sleep 10
-    - source set_drone_secrets.sh
     # get app key id from ssm
     - export OLD_AWS_ACCESS_KEY_ID=$(aws ssm get-parameters --name $SSM_KEY_ID --query "Parameters[*].{Value:Value}" --with-decryption | grep Value | awk -F ' ' '{print $2}' | tr -d '"')
     # generate new key & id for app user
@@ -88,6 +87,11 @@ steps:
     SSM_KEY_ID: kubernetes-athena-maintenance-user-id-apps-notprod-dq
     SSM_SECURE_KEY: kubernetes-athena-maintenance-user-key-apps-notprod-dq
     APP_USER_NAME:  iam-user-athena-maintenance-apps-notprod-dq
+    ENV: notprod
+    VAULT_ADDR:
+      from_secret: VAULT_ADDR_NOTPROD
+    VAULT_TOKEN:
+      from_secret: VAULT_TOKEN_NOTPROD
   when:
     event:
       - push
@@ -136,6 +140,11 @@ steps:
     SSM_KEY_ID: kubernetes-athena-maintenance-user-id-apps-prod-dq
     SSM_SECURE_KEY: kubernetes-athena-maintenance-user-key-apps-prod-dq
     APP_USER_NAME: iam-user-athena-maintenance-apps-notprod-dq
+    ENV: prod
+    VAULT_ADDR:
+      from_secret: VAULT_ADDR_PROD
+    VAULT_TOKEN:
+      from_secret: VAULT_TOKEN_PROD
   when:
     branch:
     - master
@@ -148,6 +157,7 @@ steps:
   pull: if-not-exists
   image: quay.io/ukhomeofficedigital/kd
   commands:
+  - source new_iam_secret.sh
   - export KUBE_TOKEN=$$PROD_KUBE_TOKEN
   - export KUBE_SERVER=$$PROD_KUBE_SERVER
   - export ATHENA_LOG=$$PROD_ATHENA_LOG
@@ -179,6 +189,8 @@ steps:
     PROD_KUBE_TOKEN:
       from_secret: PROD_KUBE_TOKEN
   when:
+    branch:
+    - master
     event:
     - promote
     target:
