@@ -139,7 +139,7 @@ steps:
   environment:
     SSM_KEY_ID: kubernetes-athena-maintenance-user-id-apps-prod-dq
     SSM_SECURE_KEY: kubernetes-athena-maintenance-user-key-apps-prod-dq
-    APP_USER_NAME: iam-user-athena-maintenance-apps-notprod-dq
+    APP_USER_NAME: iam-user-athena-maintenance-apps-prod-dq
     ENV: prod
     VAULT_ADDR:
       from_secret: VAULT_ADDR_PROD
