@@ -81,7 +81,7 @@ steps:
 
 - name: rotate_aws_keys_np
   pull: if-not-exists
-  image: *aws-cli
+  image: *vault-image
   commands:
     *rotate-app-user-aws-key
   environment:
@@ -129,7 +129,7 @@ steps:
 
 - name: rotate_aws_keys_prod
   pull: if-not-exists
-  image: *aws-cli
+  image: *vault-image
   commands:
     *rotate-app-user-aws-key
   environment:
